@@ -76,5 +76,83 @@ contract ERC20OTC {
 
         order.makerTokenAddress.safeTransfer(address(this), makerAmount);
         amount_Of_Orders.increment();
+        orderNonce++;
     }
+
+    function cancelOTCOrder(uint256 orderId) public {
+        Order memory order = orders[orderId];
+
+        if ((order.maker != msg.sender))
+            revert("You aren't the creater of this order");
+
+        order.makerTokenAddress.safeTransfer(address(this), order.amountMaker);
+        delete orders[orderId];
+        amount_Of_Orders.decrement();
+        emit orderCancelled(order);
+    }
+
+    function purchaseOTCOrder(uint256 orderId) public payable {
+        Order memory order = orders[orderId];
+        if ((order.amountTaker != msg.value))
+            revert(
+                "You don't have enough tokens to meet the requirments of this trade"
+            );
+
+        if (order.maker == address(0))
+            revert("Can't fufill this order as it doesn't exist");
+
+        order.makerTokenAddress.safeTransfer(order.taker, order.amountMaker);
+        order.takerTokenAddress.safeTransfer(order.maker, order.amountTaker);
+
+        amount_Of_Orders.decrement();
+        emit tradeCompleted(order.maker, order.taker, order);
+        delete orders[orderId];
+    }
+
+    function getMarketOTCOrders() public view returns (Order[] memory) {
+        uint256 orderAmounts = amount_Of_Orders.current();
+        uint256 order_Amount_Index = 0;
+
+        Order[] memory pieces = new Order[](orderAmounts);
+
+        for (uint256 i = 0; i < orderNonce; i++) {
+            if (orders[i + 1].orderId == orderNonce) {
+                uint256 nonce = i + 1;
+                Order storage currentpiece = orders[nonce];
+                pieces[order_Amount_Index] = currentpiece;
+                order_Amount_Index += 1;
+            }
+        }
+
+        return pieces;
+    }
+
+    function getOrder(uint256 orderId) public view returns (Order memory) {
+        Order memory order = orders[orderId];
+
+        return order;
+    }
+
+    function getMyOrders(address myaddress)
+        public
+        view
+        returns (Order[] memory)
+    {
+        uint256 orderAmounts = amount_Of_Orders.current();
+        uint256 order_Amount_Index = 0;
+
+        Order[] memory pieces = new Order[](orderAmounts);
+
+        for (uint256 i = 0; i < orderNonce; i++) {
+            if (orders[i + 1].maker == myaddress) {
+                uint256 nonce = i + 1;
+                Order storage currentpiece = orders[nonce];
+                pieces[order_Amount_Index] = currentpiece;
+                order_Amount_Index += 1;
+            }
+        }
+
+        return pieces;
+    }
+    // END OF CONTRACT
 }
